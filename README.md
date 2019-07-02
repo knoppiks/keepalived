@@ -5,7 +5,7 @@ Non-official Docker image for [keepalived][1] based on alpine. [curl][2] is also
 ## Usage
 
 ```bash
-docker run -d --name keepalived --restart=always --net=host --cap-add=NET_ADMIN dreg.life.uni-leipzig.local/keepalived
+docker run -d --name keepalived --restart=always --net=host --cap-add=NET_ADMIN knoppiks/keepalived
 ```
 
 Link your keepalived config to `/etc/keepalived/keepalived.conf`.
