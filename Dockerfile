@@ -1,7 +1,7 @@
-FROM alpine:3.10
+FROM alpine:3.11
 MAINTAINER Jonas Wagner <knoppizillin@gmx.de>
 
-RUN apk add --no-cache keepalived=2.0.16-r0 curl=7.65.1-r0
+RUN apk add --no-cache keepalived=2.0.19-r0 curl=7.67.0-r0
 
 COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh
