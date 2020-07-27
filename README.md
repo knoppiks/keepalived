@@ -1,5 +1,6 @@
 # keepalived
 
+[![GitHub release](https://img.shields.io/github/release/knoppiks/docker-keepalived.svg)](https://github.com/knoppiks/docker-keepalived/releases/latest)
 [![Docker Pulls](https://img.shields.io/docker/pulls/knoppiks/keepalived.svg)](https://hub.docker.com/r/knoppiks/keepalived/)
 [![](https://images.microbadger.com/badges/image/knoppiks/keepalived.svg)](https://microbadger.com/images/knoppiks/keepalived "Get your own image badge on microbadger.com")
 
