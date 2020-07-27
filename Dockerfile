@@ -1,5 +1,5 @@
 FROM alpine:3.11
-MAINTAINER Jonas Wagner <knoppizillin@gmx.de>
+MAINTAINER Jonas Wagner <jwagner@knoppiks.de>
 
 RUN apk add --no-cache keepalived=2.0.19-r0 curl=7.67.0-r0
 
