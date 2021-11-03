@@ -2,7 +2,6 @@
 
 [![GitHub release](https://img.shields.io/github/release/knoppiks/docker-keepalived.svg)](https://github.com/knoppiks/docker-keepalived/releases/latest)
 [![Docker Pulls](https://img.shields.io/docker/pulls/knoppiks/keepalived.svg)](https://hub.docker.com/r/knoppiks/keepalived/)
-[![Iamge Info](https://images.microbadger.com/badges/image/knoppiks/keepalived.svg)](https://microbadger.com/images/knoppiks/keepalived)
 
 Non-official Docker image for [keepalived][1] based on alpine. [curl][2] is also added for usage in check scripts.
 
