@@ -1,7 +1,7 @@
-FROM alpine:3.13
+FROM alpine:3.14
 MAINTAINER Jonas Wagner <jwagner@knoppiks.de>
 
-RUN apk add --no-cache keepalived=2.2.0-r0 curl
+RUN apk add --no-cache keepalived=2.2.1-r0 curl
 
 COPY entrypoint.sh /
 RUN chmod +x /entrypoint.sh
