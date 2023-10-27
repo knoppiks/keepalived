@@ -35,7 +35,7 @@ jobs:
           images: knoppiks/keepalived
 
       - name: Build and push
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         if: github.event_name != 'pull_request'
         with:
           context: .
@@ -43,7 +43,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
 
       - name: Build
-        uses: docker/build-push-action@v3
+        uses: docker/build-push-action@v5
         if: github.event_name == 'pull_request'
         with:
           context: .
