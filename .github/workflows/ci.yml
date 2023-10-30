@@ -32,7 +32,13 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5.0.0
         with:
-          images: knoppiks/keepalived
+          images: |
+            ${{ github.repository }}
+          tags: |
+            type=match,pattern=(\d+.\d+.\d+-k\d+)?,group=0
+            type=match,pattern=(\d+.\d+.\d+)(-k\d+)?,group=1
+            type=match,pattern=(\d+.\d+).\d+(-k\d+)?,group=1
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v5
