@@ -1,4 +1,4 @@
-FROM alpine:3.18
+FROM alpine:3.18.4
 
 LABEL org.opencontainers.image.authors="Jonas Wagner <jwagner@knoppiks.de>"
 
