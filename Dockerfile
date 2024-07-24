@@ -1,4 +1,4 @@
-FROM alpine:3.19.1
+FROM alpine:3.20.2
 
 LABEL org.opencontainers.image.authors="Jonas Wagner <jwagner@knoppiks.de>"
 
@@ -6,7 +6,7 @@ LABEL org.opencontainers.image.authors="Jonas Wagner <jwagner@knoppiks.de>"
 ENV KEEPALIVED_VERSION="2.2.8-r0"
 
 # renovate: datasource=repology depName=alpine_3_19/curl
-ENV CURL_VERSION="8.5.0-r0"
+ENV CURL_VERSION="8.8.0-r0"
 
 RUN apk add --no-cache keepalived=${KEEPALIVED_VERSION} curl=${CURL_VERSION}
 
