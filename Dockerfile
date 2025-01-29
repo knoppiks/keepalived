@@ -10,7 +10,4 @@ ENV CURL_VERSION="8.11.1-r0"
 
 RUN apk add --no-cache keepalived=${KEEPALIVED_VERSION} curl=${CURL_VERSION}
 
-ADD start.sh /
-RUN chmod +x /start.sh
-
-CMD ["/start.sh"]
+CMD ["/usr/sbin/keepalived", "-d", "-D", "-S", "7", "-f", "/etc/keepalived/keepalived.conf", "--dont-fork", "--log-console"]
