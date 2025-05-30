@@ -24,7 +24,7 @@
       "groupName": "alpine packages",
       "groupSlug": "alpine",
       "matchPackageNames": [
-        "/^alpine_3_18//"
+        "/^alpine_3_22//"
       ]
     }
   ]
