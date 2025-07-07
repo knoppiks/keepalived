@@ -15,6 +15,18 @@
       ],
       "extractVersion": "^(?<version>v\\d+\\.\\d+\\.\\d+)$",
       "versioning": "regex:^v(?<major>\\d+)(\\.(?<minor>\\d+)\\.(?<patch>\\d+))?$"
+    },
+    {
+      "description": [
+        "Exclude slsa-github-generator from digest pinning, see https://github.com/slsa-framework/slsa-github-generator/issues/722"
+      ],
+      "matchDepTypes": [
+        "action"
+      ],
+      "matchDepNames": [
+        "slsa-framework/slsa-github-generator"
+      ],
+      "pinDigests": false
     }
   ]
 }
