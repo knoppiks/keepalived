@@ -1,4 +1,4 @@
-name: ci
+name: CI
 
 on:
   push:
@@ -7,59 +7,274 @@ on:
     tags: [ '*.*.*' ]
   pull_request:
     branches: [ "main" ]
+  merge_group:
+
+# Declare default permissions as read-only.
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  BUILD_ID: build-${{ github.run_id }}
 
 jobs:
-  docker:
-    runs-on: ubuntu-latest
+  prep:
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+    - name: Check if Dockerhub is Enabled
+      if: github.event_name != 'pull_request'
+      id: dockerhub
+      run: |
+        if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] && [ -z "${{ vars.DOCKERHUB_REPO }}" ] && [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+          echo "No DockerHub config found in vars/secrets"
+          echo "enabled=false" >>"${GITHUB_OUTPUT}"
+        fi
+        if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] || [ -z "${{ vars.DOCKERHUB_REPO }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+          echo "Some DockerHub config is present, some missing. All of 'vars.DOCKERHUB_REPO', \
+            'vars.DOCKERHUB_USERNAME' and 'secrets.DOCKERHUB_TOKEN' must be set." 
+          exit 1
+        fi
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+    - name: Generate Image Names
+      id: images
+      run: |
+        echo "images=ghcr.io/${{ github.repository }} \
+        ${{ steps.dockerhub.outputs.enabled && vars.DOCKERHUB_REPO || ''}}" >>"${GITHUB_OUTPUT}"
+    outputs:
+      dockerhub_enabled: ${{ steps.dockerhub.outputs.enabled }}
+      images: ${{ steps.images.outputs.images }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+      with:
+        egress-policy: audit
 
-      - name: Login to DockerHub
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        if: github.event_name != 'pull_request'
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Checkout
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Login to GHCR
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
-        with:
-          images: |
-            ${{ github.repository }}
-            ghcr.io/${{ github.repository }}
-          tags: |
-            type=match,pattern=(\d+.\d+.\d+-k\d+)?,group=0
-            type=match,pattern=(\d+.\d+.\d+)(-k\d+)?,group=1
-            type=match,pattern=(\d+.\d+).\d+(-k\d+)?,group=1
-            type=raw,value=latest,enable={{is_default_branch}}
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
-      - name: Build and push
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        if: github.event_name != 'pull_request'
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm/v7,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
+    - name: Login to GHCR
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        if: github.event_name == 'pull_request'
-        with:
-          context: .
+    - name: Generate Container Image Metadata
+      id: meta
+      uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+      with:
+        images: ghcr.io/${{ github.repository }}
+
+    - name: Build and Push Container Image
+      id: push
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      with:
+        context: .
+        platforms: linux/amd64,linux/arm/v7,linux/arm64
+        push: true
+        tags: ghcr.io/${{ github.repository }}:${{ env.BUILD_ID }}
+        labels: ${{ steps.meta.outputs.labels }}
+        annotations: ${{ steps.meta.outputs.annotations }}
+
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+
+  scan:
+    needs: [ build ]
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+      with:
+        egress-policy: audit
+
+    - name: Run Trivy Vulnerability Scanner
+      uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # 0.31.0
+      with:
+        image-ref: ghcr.io/${{ github.repository }}:${{ env.BUILD_ID }}
+        format: sarif
+        output: trivy-results.sarif
+        severity: 'CRITICAL,HIGH'
+        timeout: '15m0s'
+
+    - name: Upload Trivy Scan Results to GitHub Security Tab
+      uses: github/codeql-action/upload-sarif@181d5eefc20863364f96762470ba6f862bdef56b # v3.29.2
+      with:
+        sarif_file: trivy-results.sarif
+
+    - name: Generate SBOM
+      uses: aquasecurity/trivy-action@76071ef0d7ec797419534a183b498b4d6366cf37 # 0.31.0
+      with:
+        image-ref: ghcr.io/${{ github.repository }}:${{ env.BUILD_ID }}
+        format: cyclonedx
+        output: sbom.json
+        scan-type: image
+
+    - name: Upload Trivy SBOM
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: sbom
+        path: sbom.json
+        if-no-files-found: error
+        retention-days: 7
+
+  tag:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
+    needs: [ prep, build, scan ]
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    env:
+      DIGEST: ${{ needs.build.outputs.digest }}
+
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+      with:
+        egress-policy: audit
+
+    - name: Install crane
+      uses: iarekylew00t/crane-installer@8d4dadcb8dffbf08e545af6ee697a94c54409aae # v3.1.9
+
+    - name: Login to GHCR
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Login to DockerHub
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      if: needs.prep.outputs.dockerhub_enabled
+      with:
+        username: ${{ vars.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Generate Container Image Metadata
+      id: meta
+      uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+      with:
+        images: ${{ needs.prep.outputs.images }}
+        tags: |
+          type=ref,event=pr
+          type=match,pattern=(\d+.\d+.\d+-k\d+)?,group=0
+          type=match,pattern=(\d+.\d+.\d+)(-k\d+)?,group=1
+          type=match,pattern=(\d+.\d+).\d+(-k\d+)?,group=1
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Retag and Push Container Image
+      run: |
+        while read -r tag; do
+          crane tag "ghcr.io/${{ github.repository }}@${DIGEST}" "$(echo "${tag}" | cut -d: -f2)"
+        done <<<"${{ steps.meta.outputs.tags }}"
+
+
+  sign:
+    needs: [ prep, build, scan, tag ]
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+      id-token: write
+    env:
+      DIGEST: ${{ needs.build.outputs.digest }}
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+      with:
+        egress-policy: audit
+
+    - name: Install cosign
+      uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
+
+    - name: Download SBOM
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: sbom
+        path: .
+
+    - name: Login to GHCR
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Login to DockerHub
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+      if: needs.prep.outputs.dockerhub_enabled
+      with:
+        username: ${{ vars.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - run: echo "${{ needs.prep.outputs.images }}"
+
+    - name: Sign Image
+      run: |
+        while read -r image; do
+          cosign sign --yes "${image}@${{ env.DIGEST }}"
+        done <<<"${{ needs.prep.outputs.images }}"
+
+    - name: Attest Image SBOM
+      run: |
+        while read -r image; do
+          cosign attest --yes --predicate "sbom.json" --type cyclonedx "${image}@${{ env.DIGEST }}"
+        done <<<"${{ needs.prep.outputs.images }}"
+
+  attest-gh:
+    needs: [ build, tag ]
+    permissions:
+      actions: read # for detecting the GitHub Actions environment.
+      id-token: write
+      packages: write # for uploading attestations.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ghcr.io/${{ github.repository }}
+      digest: ${{ needs.build.outputs.digest }}
+      registry-username: ${{ github.repository_owner }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  attest-dh:
+    needs: [ prep, build, tag ]
+    if: needs.prep.outputs.dockerhub_enabled
+    permissions:
+      actions: read # for detecting the GitHub Actions environment.
+      id-token: write
+      packages: write # for uploading attestations.
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: docker.io/${{ vars.DOCKERHUB_USERNAME }}/{{ github.event.repository.name }}
+      digest: ${{ needs.build.outputs.digest }}
+      registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+    secrets:
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  publish-release:
+    needs: [ attest-dh, attest-gh, tag ]
+    runs-on: ubuntu-24.04
+    if: github.ref_type == 'tag'
+    permissions:
+      contents: write
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@6c439dc8bdf85cadbbce9ed30d1c7b959517bc49 # v2.12.2
+      with:
+        egress-policy: audit
+
+    - name: Release
+      uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
