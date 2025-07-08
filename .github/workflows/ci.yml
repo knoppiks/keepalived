@@ -285,5 +285,18 @@ jobs:
       with:
         egress-policy: audit
 
+    - name: Recognize Prerelease
+      id: prerelease
+      env:
+        GITHUB_REF: ${{ github.ref_name }}
+      # In SemVer 2.0, a prerelease version is always indicated by the presence of a hyphen
+      # but the release version -k{number} is not a prerelease in our case
+      run: |
+        if [[ "${GITHUB_REF}" == *-* && "${GITHUB_REF}" != *-k+([0-9]) ]]; then
+          echo "is-prerelease=true" >>"${GITHUB_OUTPUT}"
+        fi
+
     - name: Release
       uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
+      with:
+        prerelease: ${{ steps.prerelease.outputs.is-prerelease }}
