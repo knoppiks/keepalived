@@ -24,23 +24,28 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Check if Dockerhub is Enabled
-      if: github.event_name != 'pull_request'
       id: dockerhub
+      if: github.event_name != 'pull_request'
+      env:
+        REPO: ${{ vars.DOCKERHUB_REPO }}
+        USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+        TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       run: |
-        if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] && [ -z "${{ vars.DOCKERHUB_REPO }}" ] && [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+        if [ -z "${REPO:+x}" ] && [ -z "${USERNAME:+x}" ] && [ -z "${TOKEN:+x}" ]; then
           echo "No DockerHub config found in vars/secrets"
           echo "enabled=false" >>"${GITHUB_OUTPUT}"
-        fi
-        if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] || [ -z "${{ vars.DOCKERHUB_REPO }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+        elif [ -z "${REPO:+x}" ] || [ -z "${USERNAME:+x}" ] || [ -z "${TOKEN:+x}" ]; then
           echo "Some DockerHub config is present, some missing. All of 'vars.DOCKERHUB_REPO', \
             'vars.DOCKERHUB_USERNAME' and 'secrets.DOCKERHUB_TOKEN' must be set." 
           exit 1
+        else
+          echo "enabled=true" >>"${GITHUB_OUTPUT}"
         fi
 
     - name: Generate Image Names
       id: images
       run: |
-        echo "images=ghcr.io/${{ github.repository }} \
+        echo "images=ghcr.io/${{ github.repository }}
         ${{ steps.dockerhub.outputs.enabled && vars.DOCKERHUB_REPO || ''}}" >>"${GITHUB_OUTPUT}"
     outputs:
       dockerhub_enabled: ${{ steps.dockerhub.outputs.enabled }}
@@ -183,7 +188,6 @@ jobs:
           crane tag "ghcr.io/${{ github.repository }}@${DIGEST}" "$(echo "${tag}" | cut -d: -f2)"
         done <<<"${{ steps.meta.outputs.tags }}"
 
-
   sign:
     needs: [ prep, build, scan, tag ]
     runs-on: ubuntu-24.04
@@ -227,13 +231,13 @@ jobs:
       run: |
         while read -r image; do
           cosign sign --yes "${image}@${{ env.DIGEST }}"
-        done <<<"${{ needs.prep.outputs.images }}"
+        done <<<"$(echo "${{ needs.prep.outputs.images }}" | xargs -n1)"
 
     - name: Attest Image SBOM
       run: |
         while read -r image; do
           cosign attest --yes --predicate "sbom.json" --type cyclonedx "${image}@${{ env.DIGEST }}"
-        done <<<"${{ needs.prep.outputs.images }}"
+        done <<<"$(echo "${{ needs.prep.outputs.images }}" | xargs -n1)"
 
   attest-gh:
     needs: [ build, tag ]
