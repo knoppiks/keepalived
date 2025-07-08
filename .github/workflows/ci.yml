@@ -45,8 +45,11 @@ jobs:
     - name: Generate Image Names
       id: images
       run: |
-        echo "images=ghcr.io/${{ github.repository }}
+        echo "images=ghcr.io/${{ github.repository }} \
         ${{ steps.dockerhub.outputs.enabled && vars.DOCKERHUB_REPO || ''}}" >>"${GITHUB_OUTPUT}"
+
+    - name: Check
+      run: echo "${{ steps.images.outputs.images }}"
     outputs:
       dockerhub_enabled: ${{ steps.dockerhub.outputs.enabled }}
       images: ${{ steps.images.outputs.images }}
