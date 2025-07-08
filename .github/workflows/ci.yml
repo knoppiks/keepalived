@@ -24,17 +24,21 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - name: Check if Dockerhub is Enabled
-      if: github.event_name != 'pull_request'
       id: dockerhub
+      env:
+        REPO: ${{ vars.DOCKERHUB_REPO }}
+        USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+        TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       run: |
-        if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] && [ -z "${{ vars.DOCKERHUB_REPO }}" ] && [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+        if [ -z "${REPO:+x}" ] && [ -z "${USERNAME:+x}" ] && [ -z "${TOKEN:+x}" ]; then
           echo "No DockerHub config found in vars/secrets"
           echo "enabled=false" >>"${GITHUB_OUTPUT}"
-        fi
-        if [ -z "${{ vars.DOCKERHUB_USERNAME }}" ] || [ -z "${{ vars.DOCKERHUB_REPO }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+        elif [ -z "${REPO:+x}" ] || [ -z "${USERNAME:+x}" ] || [ -z "${TOKEN:+x}" ]; then
           echo "Some DockerHub config is present, some missing. All of 'vars.DOCKERHUB_REPO', \
             'vars.DOCKERHUB_USERNAME' and 'secrets.DOCKERHUB_TOKEN' must be set." 
           exit 1
+        else
+          echo "enabled=true" >>"${GITHUB_OUTPUT}"
         fi
 
     - name: Generate Image Names
@@ -43,7 +47,7 @@ jobs:
         echo "images=ghcr.io/${{ github.repository }} \
         ${{ steps.dockerhub.outputs.enabled && vars.DOCKERHUB_REPO || ''}}" >>"${GITHUB_OUTPUT}"
     outputs:
-      dockerhub_enabled: ${{ steps.dockerhub.outputs.enabled }}
+      dockerhub_enabled: ${{ github.event_name != 'pull_request' && steps.dockerhub.outputs.enabled }}
       images: ${{ steps.images.outputs.images }}
 
   build:
