@@ -195,6 +195,7 @@ jobs:
         done <<<"${{ steps.meta.outputs.tags }}"
 
   sign:
+    # We need the tag job here, as the push must be done before signing
     needs: [ prep, build, scan, tag ]
     runs-on: ubuntu-24.04
     permissions:
@@ -245,37 +246,35 @@ jobs:
           cosign attest --yes --predicate "sbom.json" --type cyclonedx "${image}@${{ env.DIGEST }}"
         done <<<"$(echo "${{ needs.prep.outputs.images }}" | xargs -n1)"
 
-  attest-gh:
+  attest:
+    # We need the tag job here, as the push must be done before signing
     needs: [ build, tag ]
     permissions:
       actions: read # for detecting the GitHub Actions environment.
       id-token: write
       packages: write # for uploading attestations.
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    strategy:
+      matrix:
+        registry: [ ghcr.io, docker.io ]
+        include:
+        - registry: ghcr.io
+          image: ghcr.io/${{ github.repository }}
+          username: ${{ github.repository_owner }}
+          secret: "GITHUB_TOKEN"
+        - registry: docker.io
+          image: ${{ vars.DOCKERHUB_REPO }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          secret: "DOCKERHUB_TOKEN"
     with:
-      image: ghcr.io/${{ github.repository }}
+      image: ${{ matrix.image }}
       digest: ${{ needs.build.outputs.digest }}
-      registry-username: ${{ github.repository_owner }}
+      registry-username: ${{ matrix.username }}
     secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
-
-  attest-dh:
-    needs: [ prep, build, tag ]
-    if: needs.prep.outputs.dockerhub_enabled
-    permissions:
-      actions: read # for detecting the GitHub Actions environment.
-      id-token: write
-      packages: write # for uploading attestations.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: docker.io/${{ vars.DOCKERHUB_USERNAME }}/{{ github.event.repository.name }}
-      digest: ${{ needs.build.outputs.digest }}
-      registry-username: ${{ vars.DOCKERHUB_USERNAME }}
-    secrets:
-      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
+      registry-password: ${{ secrets[matrix.secret] }}
 
   publish-release:
-    needs: [ attest-dh, attest-gh, tag ]
+    needs: [ attest, tag ]
     runs-on: ubuntu-24.04
     if: github.ref_type == 'tag'
     permissions:
