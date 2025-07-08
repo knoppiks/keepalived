@@ -266,6 +266,7 @@ jobs:
           image: ${{ vars.DOCKERHUB_REPO }}
           username: ${{ vars.DOCKERHUB_USERNAME }}
           secret: "DOCKERHUB_TOKEN"
+    if: matrix.registry != 'docker.io' || needs.prep.outputs.dockerhub_enabled
     with:
       image: ${{ matrix.image }}
       digest: ${{ needs.build.outputs.digest }}
