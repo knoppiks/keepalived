@@ -25,6 +25,7 @@ jobs:
     steps:
     - name: Check if Dockerhub is Enabled
       id: dockerhub
+      if: github.event_name != 'pull_request'
       env:
         REPO: ${{ vars.DOCKERHUB_REPO }}
         USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
@@ -44,10 +45,10 @@ jobs:
     - name: Generate Image Names
       id: images
       run: |
-        echo "images=ghcr.io/${{ github.repository }} \
+        echo "images=ghcr.io/${{ github.repository }}
         ${{ steps.dockerhub.outputs.enabled && vars.DOCKERHUB_REPO || ''}}" >>"${GITHUB_OUTPUT}"
     outputs:
-      dockerhub_enabled: ${{ github.event_name != 'pull_request' && steps.dockerhub.outputs.enabled }}
+      dockerhub_enabled: ${{ steps.dockerhub.outputs.enabled }}
       images: ${{ steps.images.outputs.images }}
 
   build:
@@ -187,7 +188,6 @@ jobs:
           crane tag "ghcr.io/${{ github.repository }}@${DIGEST}" "$(echo "${tag}" | cut -d: -f2)"
         done <<<"${{ steps.meta.outputs.tags }}"
 
-
   sign:
     needs: [ prep, build, scan, tag ]
     runs-on: ubuntu-24.04
@@ -231,13 +231,13 @@ jobs:
       run: |
         while read -r image; do
           cosign sign --yes "${image}@${{ env.DIGEST }}"
-        done <<<"${{ needs.prep.outputs.images }}"
+        done <<<"$(echo "${{ needs.prep.outputs.images }}" | xargs -n1)"
 
     - name: Attest Image SBOM
       run: |
         while read -r image; do
           cosign attest --yes --predicate "sbom.json" --type cyclonedx "${image}@${{ env.DIGEST }}"
-        done <<<"${{ needs.prep.outputs.images }}"
+        done <<<"$(echo "${{ needs.prep.outputs.images }}" | xargs -n1)"
 
   attest-gh:
     needs: [ build, tag ]
