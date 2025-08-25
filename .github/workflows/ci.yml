@@ -246,7 +246,7 @@ jobs:
           cosign attest --yes --predicate "sbom.json" --type cyclonedx "${image}@${{ env.DIGEST }}"
         done <<<"$(echo "${{ needs.prep.outputs.images }}" | xargs -n1)"
 
-  attest:
+  attest-ghcr:
     # We need the tag job here, as the push must be done before signing
     needs: [ build, tag ]
     permissions:
@@ -254,27 +254,31 @@ jobs:
       id-token: write
       packages: write # for uploading attestations.
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    strategy:
-      matrix:
-        registry: [ ghcr.io, docker.io ]
-        include:
-        - registry: ghcr.io
-          image: ghcr.io/${{ github.repository }}
-          username: ${{ github.repository_owner }}
-          secret: "GITHUB_TOKEN"
-        - registry: docker.io
-          image: ${{ vars.DOCKERHUB_REPO }}
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          secret: "DOCKERHUB_TOKEN"
     with:
-      image: ${{ matrix.image }}
+      image: ghcr.io/${{ github.repository }}
       digest: ${{ needs.build.outputs.digest }}
-      registry-username: ${{ matrix.username }}
+      registry-username: ${{ github.repository_owner }}
     secrets:
-      registry-password: ${{ secrets[matrix.secret] }}
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
+
+  attest-dockerhub:
+    # We need the tag job here, as the push must be done before signing
+    needs: [ prep, build, tag ]
+    permissions:
+      actions: read # for detecting the GitHub Actions environment.
+      id-token: write
+      packages: write # for uploading attestations.
+    if: needs.prep.outputs.dockerhub_enabled == 'true'
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ vars.DOCKERHUB_REPO }}
+      digest: ${{ needs.build.outputs.digest }}
+      registry-username: ${{ vars.DOCKERHUB_USERNAME }}
+    secrets:
+      registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
 
   publish-release:
-    needs: [ attest, tag ]
+    needs: [ attest-ghcr, attest-dockerhub, tag ]
     runs-on: ubuntu-24.04
     if: github.ref_type == 'tag'
     permissions:
