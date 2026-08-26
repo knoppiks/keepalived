@@ -253,7 +253,7 @@ jobs:
       actions: read # for detecting the GitHub Actions environment.
       id-token: write
       packages: write # for uploading attestations.
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       image: ghcr.io/${{ github.repository }}
       digest: ${{ needs.build.outputs.digest }}
@@ -269,7 +269,7 @@ jobs:
       id-token: write
       packages: write # for uploading attestations.
     if: needs.prep.outputs.dockerhub_enabled == 'true'
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@f7dd8c54c2067bafc12ca7a55595d5ee9b75204a # v2.1.0
     with:
       image: ${{ vars.DOCKERHUB_REPO }}
       digest: ${{ needs.build.outputs.digest }}
