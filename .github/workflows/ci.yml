@@ -21,7 +21,7 @@ env:
 
 jobs:
   prep:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
     - name: Check if Dockerhub is Enabled
       id: dockerhub
@@ -55,7 +55,7 @@ jobs:
       images: ${{ steps.images.outputs.images }}
 
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       packages: write
     steps:
@@ -102,7 +102,7 @@ jobs:
 
   scan:
     needs: [ build ]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       security-events: write
     steps:
@@ -144,7 +144,7 @@ jobs:
   tag:
     if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
     needs: [ prep, build, scan ]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       packages: write
     env:
@@ -197,7 +197,7 @@ jobs:
   sign:
     # We need the tag job here, as the push must be done before signing
     needs: [ prep, build, scan, tag ]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     permissions:
       packages: write
       id-token: write
@@ -279,7 +279,7 @@ jobs:
 
   publish-release:
     needs: [ attest-ghcr, attest-dockerhub, tag ]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     if: github.ref_type == 'tag'
     permissions:
       contents: write
